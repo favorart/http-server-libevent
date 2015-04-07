@@ -1,0 +1,10 @@
+*.log
+LinuxProject1-Debug.vgdbsettings
+*.vgdbsettings
+LinuxProject1.vcxproj.user
+*.filters
+LinuxProject1.vcxproj
+LinuxProject1.c
+Makefile.old
+Makefile
+debug.mak.old
