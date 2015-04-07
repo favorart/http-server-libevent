@@ -4,49 +4,6 @@
 #include "http_request.h"
 
 //-----------------------------------------
-void  on_read   (evutil_socket_t fd, short ev, void *arg)
-{
- struct client  *Client = (struct client*) arg;
-
- static char Buffer[1024];
- int  recv_size = recv (fd, Buffer, 1024, MSG_NOSIGNAL);
- if ( recv_size <= 0 )
- {
-   shutdown (fd, SHUT_RDWR);
-   close    (fd);
-
-   event_del (&(Client->ev_read));
-   free      (  Client);
- }
-
- send (fd, Buffer, recv_size, MSG_NOSIGNAL);
-}
-//-----------------------------------------
-void  on_accept (evutil_socket_t fd, short ev, void *arg)
-{
- int  SlaveSocket = accept (fd, 0, 0);
- if ( SlaveSocket == -1 )
- {
-   fprintf (stderr, "%s\n", strerror (errno));
-   return;
- }
-
- set_nonblock (SlaveSocket);
-
- struct client *Client = (struct client*) calloc (1U, sizeof (*Client));
- if ( !Client )
- {
-   fprintf (stderr, "%s\n", strerror (errno));
-   
-   shutdown (SlaveSocket, SHUT_RDWR);
-   close    (SlaveSocket);
-   return;
- }
-
- event_set (&Client->ev_read, SlaveSocket, EV_READ | EV_PERSIST, on_read, Client);
- event_add (&Client->ev_read, NULL);
-}
-//-----------------------------------------
 /*   Для того, чтобы начать работать с буферизированным вводом/выводом необходимо:
  *   —  инициализировать структуру bufferevent вызовом bufferevent_new (),
  *      указав функции для обратного вызова на события
@@ -59,9 +16,10 @@ void  on_accept (evutil_socket_t fd, short ev, void *arg)
  *   либо до указанной отметки (watermark).
  */
 
-void  http_ac_err_cb (struct evconnlistener *listener, void *arg)
+void  http_ac_err_cb (evutil_socket_t fd, short ev, void *arg)
 {
-  struct event_base *base = evconnlistener_get_base (listener);
+  struct event_base *base = (struct event_base*) arg;
+
   int err = EVUTIL_SOCKET_ERROR ();
   fprintf (stderr, "Got an error %d (%s) on the listener. "
            "Shutting down.\n", err, evutil_socket_error_to_string (err));
@@ -69,81 +27,120 @@ void  http_ac_err_cb (struct evconnlistener *listener, void *arg)
   event_base_loopexit (base, NULL);
 }
 /* Connecting handling */
-void  http_accept_cb (struct evconnlistener *listener, evutil_socket_t fd,
-                      struct sockaddr *address, int socklen, void *arg)
+void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
 {
   /* A new connection! Set up a bufferevent for it */
-  struct event_base *base = evconnlistener_get_base (listener);
-  // !!!
+  struct event_base  *base =  (struct event_base*) arg;
 
-  /* Create new bufferized event, linked with client's socket */
-  struct bufferevent *b_ev = bufferevent_socket_new (base, fd, BEV_OPT_CLOSE_ON_FREE);
-  bufferevent_setcb  (b_ev,  http_read_cb, http_write_cb, http_error_cb, arg);
-  /* Ready to get data */
-  bufferevent_enable (b_ev,  EV_READ | EV_WRITE | EV_PERSIST);
-}
-//-----------------------------------------
-void  http_read_cb  (struct bufferevent *b_ev, short events, void *arg)
-{
-  /* This callback is invoked when there is data to read on b_ev_read */
-     struct evbuffer  * input_buf = bufferevent_get_input  (arg);
-  // struct evbuffer  *output_buf = bufferevent_get_output (arg);
-  if ( !input_buf )
+  /* Making the new client */
+  struct client *Client = (struct client*) calloc (1U, sizeof (*Client));
+  if ( !Client )
   {
     fprintf (stderr, "%s\n", strerror (errno));
     return;
   }
+  Client->base = base;
 
-  size_t len = (evbuffer_get_length (input_buf) + 1U);
-  if ( !len )
+  /* Create new bufferized event, linked with client's socket */
+  Client->b_ev = bufferevent_socket_new (base, fd, BEV_OPT_CLOSE_ON_FREE);
+  bufferevent_setcb  (Client->b_ev, http_read_cb, http_write_cb, http_error_cb, Client);
+  /* Ready to get data */
+  bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
+}
+//-----------------------------------------
+void  http_read_cb  (struct bufferevent *b_ev, void *arg)
+{
+  size_t  recv_length = 0U;
+  char   *recv_string = NULL;
+  struct client  *Client = (struct client*) arg;
+
+  /* This callback is invoked when there is data to read on b_ev_read */
+     struct evbuffer  * in_buf = bufferevent_get_input  (Client->b_ev);
+  // struct evbuffer  *out_buf = bufferevent_get_output (arg);
+
+  // if ( !in_buf )
+  // { fprintf (stderr, "%s\n", strerror (errno)); return; }
+
+  if ( !(recv_length = (evbuffer_get_length (in_buf) + 1U)) )
     return;
-
-  char *data = (char*) malloc (sizeof (char) * len);
-  if( !data )
-  {
-    fprintf (stderr, "%s\n",strerror (errno));
+  if ( !(recv_string = (char*) calloc (recv_length, sizeof (char))) )
+  { fprintf (stderr, "%s\n",strerror (errno));
     return;
   }
 
-  evbuffer_copyout (input_buf, data, len);
-  printf ("we got some data: %s\n", data);
-  free (data);
+  evbuffer_copyout (in_buf, recv_string, recv_length);
+  http_request_parse (&Client->request, recv_string, recv_length);
+  // printf ("Got some data: %s\n", recv_string);
+  free (recv_string);
 
   /* Copy all the data from the input buffer to the output buffer. */
-  // evbuffer_add_buffer (output, input);
+  // evbuffer_add_buffer (out_buf, in_buf);
 }
-void  http_write_cb (struct bufferevent *b_ev, short events, void *arg)
+void  http_write_cb (struct bufferevent *b_ev, void *arg)
 {
-  struct client *Client = (struct client*) arg;
-  
-  bool exist = 0;
-  if ( exist )
-  {
-    const char *content_type = (CLient->efile == HTML) ?  "text/html; charset=utf-8" : 
-                               (CLient->efile == JPEG) ? "image/jpeg" : "";
-    const char *connection = "close";
+  struct client *Client = (struct client*) arg;  
+  http_response_make (&Client->request, bufferevent_get_output (b_ev));
 
-    evbuffer_add_printf (bufferevent_get_output (b_ev), "%s\r\n"
-                         "Content-Type: %s\r\n"
-                         "Content-Length: %u\r\n"
-                         "Connection: %s\r\n"
-                         "\r\n%s",
-                         HTTP_RESPONSE_200,
-                         content_type,
-                         Client->request->content_size,
-                         connection,
-                         Client->request->content );
-  }
-  else
-  {
-    evbuffer_add_printf (bufferevent_get_output (b_ev), "%s\r\n", HTTP_RESPONSE_404);
-  }
+  // bufferevent_write_buffer (b_ev, ev_buf);
 }
 void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
 {
+  struct client *Client = (struct client*) arg;
+
   if ( events & BEV_EVENT_ERROR )
-    fprintf (stderr, "Error from bufferevent: '%s'\n", evutil_socket_error_to_string (EVUTIL_SOCKET_ERROR ()));
+  {
+    fprintf (stderr, "Error from bufferevent: '%s'\n",
+             evutil_socket_error_to_string (EVUTIL_SOCKET_ERROR ()));
+  }
   if ( events & (BEV_EVENT_EOF | BEV_EVENT_ERROR) )
-  { bufferevent_free (b_ev_error); }
+  { 
+    http_request_free (&Client->request);
+    bufferevent_free  ( Client->b_ev);
+  
+    free (Client);
+  }
 }
+//-----------------------------------------
+// void  on_read (evutil_socket_t fd, short ev, void *arg)
+// {
+//   struct client  *Client = (struct client*) arg;
+// 
+//   static char Buffer[1024];
+//   int  recv_size = recv (fd, Buffer, 1024, MSG_NOSIGNAL);
+//   if ( recv_size <= 0 )
+//   {
+//     shutdown (fd, SHUT_RDWR);
+//     close (fd);
+// 
+//     event_del (&(Client->ev_read));
+//     free (Client);
+//   }
+// 
+//   send (fd, Buffer, recv_size, MSG_NOSIGNAL);
+// }
+// //-----------------------------------------
+// void  on_accept (evutil_socket_t fd, short ev, void *arg)
+// {
+//   int  SlaveSocket = accept (fd, 0, 0);
+//   if ( SlaveSocket == -1 )
+//   {
+//     fprintf (stderr, "%s\n", strerror (errno));
+//     return;
+//   }
+// 
+//   set_nonblock (SlaveSocket);
+// 
+//   struct client *Client = (struct client*) calloc (1U, sizeof (*Client));
+//   if ( !Client )
+//   {
+//     fprintf (stderr, "%s\n", strerror (errno));
+// 
+//     shutdown (SlaveSocket, SHUT_RDWR);
+//     close (SlaveSocket);
+//     return;
+//   }
+// 
+//   event_set (&Client->ev_read, SlaveSocket, EV_READ | EV_PERSIST, on_read, Client);
+//   event_add (&Client->ev_read, NULL);
+// }
 //-----------------------------------------

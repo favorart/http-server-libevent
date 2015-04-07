@@ -3,22 +3,39 @@
 #include "http_request.h"
 
 //-----------------------------------------
-int  http_request_init (http_req *req, ...)
+const char*  strmyerror ()
 {
- memset (req, 0, sizeof (*req))
- return 0;
-}
-void http_request_free (http_req *req)
-{
- free (req->host);
- req->type = NONE;
- req->host = NULL;
- req->filename = NULL;
+  const char* strerr;
+
+  switch ( my_errno )
+  {
+    default: strerr = NULL;                             break;
+    case HTTP_ERR_PORT: strerr = "Incorrect port.";                break;
+    case HTTP_ERR_PARAM: strerr = "Invalid function's parameter.";  break;
+    case HTTP_ERR_INPUT: strerr = "Input incorrect user data.";     break;
+    case HTTP_ERR_LIBEV: strerr = "Problem with libevent entity.";  break;
+    case HTTP_ERR_RCMMN: strerr = "Incorrect request command.";     break;
+  }
+
+  my_errno = HTTP_ERR_NONE;
+  return strerr;
 }
 //-----------------------------------------
-int http_request_parse (http_req *req, char *buffer)
+int  http_request_init  (http_req *req, ...)
 {
-  int firstSpace, secondSpace, firstEnter, secondEnter, end;
+  memset (req, 0, sizeof (*req));
+  return 0;
+}
+void http_request_free  (http_req *req)
+{
+ free (req->content);
+ free (req->path);
+ memset (req, 0, sizeof (*req));
+}
+//-----------------------------------------
+int  http_request_parse (http_req *req, char *buffer, size_t buffer_length)
+{
+  char *first_space, *second_space, *first_enter, *second_enter;
 
   if ( !buffer )
   {
@@ -27,176 +44,89 @@ int http_request_parse (http_req *req, char *buffer)
     return 1;
   }
 
-  firstSpace = strstr (buffer, " ");
-  if ( firstSpace == 0 || firstSpace > 4 )
+  first_space = strstr (buffer, " ");
+  if ( !first_space || (first_space - buffer) > 4 )
   {
     my_errno = HTTP_ERR_INPUT;
     fprintf (stderr, "%s\n", strmyerror ());
     return 1;
   }
 
-  secondSpace = strstr (buffer + firstSpace, " ");
-  if ( secondSpace == 0 )
+  if ( !(second_space = strstr (first_space + 1, " ")) )
+  { my_errno = HTTP_ERR_RCMMN;
+    fprintf (stderr, "%s\n", strmyerror ());
+    return 1;
+  }
+
+  if ( !(first_enter = strstr (second_space, "\r\n")) )
+  { my_errno = HTTP_ERR_INPUT;
+    fprintf (stderr, "%s\n", strmyerror ());
+    return 1;
+  }
+
+  char command[5];
+  memcpy (command, buffer, first_space - buffer);
+  command[first_space - buffer] = '\0';
+
+       if ( !strcmp (command, "HEAD") ) req->type = HTTP_REQ_HEAD;
+  else if ( !strcmp (command, "GET" ) ) req->type = HTTP_REQ_GET;
+  else if ( !strcmp (command, "POST") ) req->type = HTTP_REQ_POST;
+  else
+  { my_errno = HTTP_ERR_RCMMN;
+    fprintf (stderr, "%s\n", strmyerror ());
+    return 1;
+  }
+
+  if ( !(req->path = (char *) calloc (first_enter - second_space, sizeof (char))) )
+  { fprintf (stderr, "%s\n", strerror (errno));
+    return 1;
+  }
+  strncpy (req->path, first_enter + 2, first_space - second_space - 1);
+
+
+  if ( !(second_enter = strstr (second_space, "\r\n\r\n")) )
   {
     my_errno = HTTP_ERR_INPUT;
     fprintf (stderr, "%s\n", strmyerror ());
     return 1;
   }
 
-  firstEnter = strstr (buffer + secondSpace, "\r\n");
-  if ( secondSpace == 0 )
+  if ( req->type != HTTP_REQ_GET )
   {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
+    if ( !(req->content = (char *) calloc ((buffer + buffer_length) - second_enter + 1, sizeof (char))) )
+    { fprintf (stderr, "%s\n", strerror (errno));
+      return 1;
+    }
+    strncpy (req->path, second_enter, (buffer + buffer_length) - second_enter);
   }
+  return 0;
+}
+int  http_response_make (http_req *req, struct evbuffer *out_buf)
+{
+  if ( req->file_exist )
+  {
+    const char *content_type = (req->file_type == HTTP_EXT_HTML) ? "text/html; charset=utf-8" :
+                               (req->file_type == HTTP_EXT_JPEG) ? "image/jpeg" : "";
+    const char *connection = "close";
 
-  char requastion[5];
-  strncpy (requastrion, buffer, firstSpace + 1);
-  malloc (requastrion, 0, sizeof (char));
-  if ( !strcmp (Req, "HEAD") )
-  {
-    req->type = HEAD;
-  }
-  else if ( !strcmp (Req, "GET") )
-  {
-    req->type = GET;
-  }
-  else if ( !strcmp (Req, "POST") )
-  {
-    req->type = POST;
+    evbuffer_add_printf (out_buf, "%s\r\n"
+                         "Content-Type: %s\r\n"
+                         "Content-Length: %u\r\n"
+                         "Connection: %s\r\n"
+                         "\r\n%s",
+                         HTTP_RESPONSE_200,
+                         content_type,
+                         req->content_size,
+                         connection,
+                         req->content);
   }
   else
   {
-    my_errno = HTTP_ERR_PARAM;
-    // fprintf (stderr, "Incorrect request\n");
-    return 1;
+    evbuffer_add_printf (out_buf, "%s\r\n", HTTP_RESPONSE_404);
   }
 
-  req->path = (char *) calloc (firstEnter - secondSpace, sizeof (char));
-  strncpy (req->path, buffer + firstEnter + 1, firstSpace - secondSpace - 1);
-
-  if ( req->type == "GET" )
-  {
-    return 0;
-  }
-
-  secondSpace = strstr (buffer + secondSpace, "\r\n\r\n");
-  if ( secondEneter == 0 )
-  {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  secondEnter += 4;
-  end = secondEnter;
-  while ( buffer[end] )
-  {
-    ++end;
-  }
-  req->content = (char *) calloc (end - secondEnter + 1, sizeof (char));
-  strncpy (req->path, buffer + secondEnter, end - secondEnter);
+  return 0;
 }
-[01:04 : 35] Роман Холин : typedef enum { NONE, HEAD, GET, POST } http_type;
-typedef struct http_request http_req;
-
-struct  http_request
-{
-  http_type type;
-  size_t pathSize;
-  char      *path;
-  size_t contentSize;
-  char      *content;
-};
-
-int http_request_parse (http_req *req, char *buffer)
-{
-  int firstSpace, secondSpace, firstEnter, secondEnter, end;
-
-  if ( !buffer )
-  {
-    my_errno = HTTP_ERR_PARAM;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  firstSpace = strstr (buffer, " ");
-  if ( firstSpace == 0 || firstSpace > 4 )
-  {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  secondSpace = strstr (buffer + firstSpace, " ");
-  if ( secondSpace == 0 )
-  {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  firstEnter = strstr (buffer + secondSpace, "\r\n");
-  if ( secondSpace == 0 )
-  {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  char requastion[5];
-  strncpy (requastrion, buffer, firstSpace + 1);
-  malloc (requastrion, 0, sizeof (char));
-  if ( !strcmp (Req, "HEAD") )
-  {
-    req->type = HEAD;
-  }
-  else if ( !strcmp (Req, "GET") )
-  {
-    req->type = GET;
-  }
-  else if ( !strcmp (Req, "POST") )
-  {
-    req->type = POST;
-  }
-  else
-  {
-    my_errno = HTTP_ERR_PARAM;
-    // fprintf (stderr, "Incorrect request\n");
-    return 1;
-  }
-
-  req->path = (char *) calloc (firstEnter - secondSpace, sizeof (char));
-  strncpy (req->path, buffer + firstEnter + 1, firstSpace - secondSpace - 1);
-  req->pathSize = firstSpace - secondSpace - 1;
-
-  if ( req->type == "GET" )
-  {
-    req->content = 0;
-    req->contentSize = 0;
-    return 0;
-  }
-
-  secondSpace = strstr (buffer + secondSpace, "\r\n\r\n");
-  if ( secondEneter == 0 )
-  {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  secondEnter += 4;
-  end = secondEnter;
-  while ( buffer[end] )
-  {
-    ++end;
-  }
-  req->content = (char *) calloc (end - secondEnter + 1, sizeof (char));
-  strncpy (req->path, buffer + secondEnter, end - secondEnter);
-  req->contentSize = end - secondEnter;
-}
-
 // #define MAXPATH	  255
 // #define MAXBUF  	10000
 // 

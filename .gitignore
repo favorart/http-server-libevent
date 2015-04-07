@@ -8,3 +8,4 @@ LinuxProject1.c
 Makefile.old
 Makefile
 debug.mak.old
+*.dat

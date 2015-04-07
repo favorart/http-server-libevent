@@ -1,10 +1,9 @@
 ﻿#include "stdafx.h"
 #include "http_error.h"
 #include "http_server.h"
-// #include "http_request.h"
 
 //-----------------------------------------
-int   set_nonblock (int fd)
+int   set_nonblock (evutil_socket_t fd)
 {
   int flags;
 #ifdef O_NONBLOCK
@@ -24,14 +23,12 @@ int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip
   if ( !path ) path = "/";
   if ( !ip   )   ip = "0.0.0.0";
 
-  if ( !port || port <= 0 || port > max_port )
+  if ( !port || (conf->port = atoi (port)) <= 0 || conf->port > max_port )
   {
     my_errno = HTTP_ERR_PORT;
     fprintf (stderr, "%s\n", strmyerror ());    
     conf->port = 8080;
   }
-  else
-    conf->port = atoi (port);
 
   if ( !(conf->path = (char*) malloc (sizeof (char) * (strlen (path) + 1U))) )
     return 1;
@@ -52,8 +49,7 @@ void  http_server_config_free  (srv_conf *conf)
   memset (conf, 0, sizeof (*conf));
 }
 //-----------------------------------------
-#include <getopt.h>   /* for getopt_long */
-
+#include <getopt.h>   /* for getopt_long finction */
 int  parse_console_parameters (int argc, char **argv, srv_conf *conf)
 {
  char  *dir_opt = NULL, *port_opt = NULL, *ip_opt = NULL;
