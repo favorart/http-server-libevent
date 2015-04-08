@@ -46,6 +46,10 @@ void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
   bufferevent_setcb  (Client->b_ev, http_read_cb, http_write_cb, http_error_cb, Client);
   /* Ready to get data */
   bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
+
+#ifdef _DEBUG
+  printf ("connection established\n");
+#endif
 }
 //-----------------------------------------
 void  http_read_cb  (struct bufferevent *b_ev, void *arg)
@@ -56,10 +60,7 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
 
   /* This callback is invoked when there is data to read on b_ev_read */
      struct evbuffer  * in_buf = bufferevent_get_input  (Client->b_ev);
-  // struct evbuffer  *out_buf = bufferevent_get_output (arg);
-
-  // if ( !in_buf )
-  // { fprintf (stderr, "%s\n", strerror (errno)); return; }
+  // struct evbuffer  *out_buf = bufferevent_get_output (Client->b_ev);
 
   if ( !(recv_length = (evbuffer_get_length (in_buf) + 1U)) )
     return;
@@ -69,8 +70,8 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
   }
 
   evbuffer_copyout (in_buf, recv_string, recv_length);
+  recv_string[recv_length] = '\0';
   http_request_parse (&Client->request, recv_string, recv_length);
-  // printf ("Got some data: %s\n", recv_string);
   free (recv_string);
 
   /* Copy all the data from the input buffer to the output buffer. */

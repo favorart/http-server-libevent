@@ -19,14 +19,17 @@ typedef enum { HTTP_EXT_NONE, HTTP_EXT_HTML, HTTP_EXT_JPEG } file_ext;
 typedef struct http_request http_req;
 struct  http_request
 {
- http_type  type;
- char      *path;
  //------------------
- char      *content;
- uint32_t   content_size;
+ http_type  type;         // v
+ char      *path;         // v
+ size_t     path_size;    // v
  //------------------
- bool       file_exist;
- file_ext   file_type;
+ char      *content;      // v
+ size_t     content_size; // v
+ //------------------
+ bool       file_exist;   // v
+ file_ext   file_type;    // v
+ //------------------
 };
 
 #define HTTP_REQUEST_GET_SIMPLE  "GET /data/test.html HTTP/1.0\r\n\r\n"
