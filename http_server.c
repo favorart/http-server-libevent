@@ -8,7 +8,7 @@
  *   —  инициализировать структуру bufferevent вызовом bufferevent_new (),
  *      указав функции для обратного вызова на события
  *      чтения (необязательно), записи (необязательно) и ошибки (обязательно);
- *   —  Привязать это событие к локальной событийной базе (event_base) вызовом bufferevent_base_set();
+ *   —  Привязать это событие к локальной событийной базе (event_base) вызовом bufferevent_base_set ();
  *   —  Включать или выключать обработчики чтения/записи вызовами bufferevent_enable ()/bufferevent_disable ();
  *   —  Читать и писать вызовами bufferevent_read () и bufferevent_write () соответственно.
  *   Стоит отметить, что обработчик чтения будет вызван после того, как в буфере накопится весь пакет
@@ -32,17 +32,24 @@ void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
   /* A new connection! Set up a bufferevent for it */
   struct event_base  *base =  (struct event_base*) arg;
 
+  int  SlaveSocket = accept (fd, 0, 0);
+  if ( SlaveSocket == -1 )
+  { fprintf (stderr, "%s\n", strerror (errno));
+    return;
+  }
+  
+  set_nonblock (SlaveSocket);
+
   /* Making the new client */
   struct client *Client = (struct client*) calloc (1U, sizeof (*Client));
   if ( !Client )
-  {
-    fprintf (stderr, "%s\n", strerror (errno));
+  { fprintf (stderr, "%s\n", strerror (errno));
     return;
   }
   Client->base = base;
 
   /* Create new bufferized event, linked with client's socket */
-  Client->b_ev = bufferevent_socket_new (base, fd, BEV_OPT_CLOSE_ON_FREE);
+  Client->b_ev = bufferevent_socket_new (base, SlaveSocket, BEV_OPT_CLOSE_ON_FREE);
   bufferevent_setcb  (Client->b_ev, http_read_cb, http_write_cb, http_error_cb, Client);
   /* Ready to get data */
   bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
@@ -56,11 +63,10 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
 {
   size_t  recv_length = 0U;
   char   *recv_string = NULL;
-  struct client  *Client = (struct client*) arg;
 
+  struct client  *Client = (struct client*) arg;
   /* This callback is invoked when there is data to read on b_ev_read */
-     struct evbuffer  * in_buf = bufferevent_get_input  (Client->b_ev);
-  // struct evbuffer  *out_buf = bufferevent_get_output (Client->b_ev);
+  struct evbuffer  * in_buf = bufferevent_get_input  (Client->b_ev);
 
   if ( !(recv_length = (evbuffer_get_length (in_buf) + 1U)) )
     return;
@@ -69,19 +75,38 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
     return;
   }
 
-  evbuffer_copyout (in_buf, recv_string, recv_length);
+  evbuffer_remove (in_buf, recv_string, recv_length);
   recv_string[recv_length] = '\0';
   http_request_parse (&Client->request, recv_string, recv_length);
   free (recv_string);
+
+#ifdef _DEBUG
+  printf ("request reseived\n");
+#endif
+
+  http_response_make (&Client->request, bufferevent_get_output (b_ev));
+  http_request_free  (&Client->request);
+
+  bufferevent_setwatermark (b_ev, EV_WRITE, 0, 0);
+
+#ifdef _DEBUG
+  printf ("response ready\n");
+#endif
 
   /* Copy all the data from the input buffer to the output buffer. */
   // evbuffer_add_buffer (out_buf, in_buf);
 }
 void  http_write_cb (struct bufferevent *b_ev, void *arg)
 {
-  struct client *Client = (struct client*) arg;  
-  http_response_make (&Client->request, bufferevent_get_output (b_ev));
+  struct client *Client = (struct client*) arg;
+  
+  // bufferevent_write
+  // bufferevent_write_buffer ()
+#ifdef _DEBUG
+  printf ("write event\n");
+#endif
 
+  // http_response_make (&Client->request, bufferevent_get_output (b_ev));
   // bufferevent_write_buffer (b_ev, ev_buf);
 }
 void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)

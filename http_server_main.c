@@ -8,14 +8,13 @@ int main (int argc, char **argv)
   int result = 0;
 
   /* Считывание конфигурации сервера с параметров командной строки */
-  struct http_server_config  srv_conf = { 0 };
-  if( parse_console_parameters (argc, argv, &srv_conf) )
+  if( parse_console_parameters (argc, argv, &server_conf) )
   {
    fprintf (stderr, "%s\n", strerror (errno));
    result = 1;
    goto MARK_FREE;
   }
-  http_server_config_print (&srv_conf, stdout);
+  http_server_config_print (&server_conf, stdout);
   
   /* Создание слушающего сокета */
   int  MasterSocket = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -36,8 +35,8 @@ int main (int argc, char **argv)
 
   struct sockaddr_in  SockAddr = { 0 };
   SockAddr.sin_family      = AF_INET;
-  SockAddr.sin_port        = htons (srv_conf.port);
-  SockAddr.sin_addr.s_addr = inet_addr (srv_conf.ip);
+  SockAddr.sin_port        = htons (server_conf.port);
+  SockAddr.sin_addr.s_addr = inet_addr (server_conf.ip);
   
   int  Result = bind (MasterSocket, (struct sockaddr*) &SockAddr, sizeof (SockAddr));
   if ( Result == -1 )
@@ -86,8 +85,7 @@ int main (int argc, char **argv)
   //                                                             LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, -1,
   //                                                             (struct sockaddr*)&sin, sizeof (sin));
   // if ( !listener )
-  // {
-  //   fprintf (stderr, "%s\n", strerror (errno));
+  // { fprintf (stderr, "%s\n", strerror (errno));
   //   result = 1;
   //   goto MARK_FREE;
   // }
@@ -108,7 +106,7 @@ MARK_FREE:
   shutdown (MasterSocket, SHUT_RDWR);
   close    (MasterSocket);
 
-  http_server_config_free (&srv_conf);
+  http_server_config_free (&server_conf);
   //-------------------------------------------
   return result;
 }

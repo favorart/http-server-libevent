@@ -7,21 +7,30 @@
  *  v   Создать HTTP-сервер.
  *  v   Сборка через make.
  *  v   Запуск:  ./wwwd -d <dir> -h <ip> -p <port>
- *  +   Реализация HEAD/GET/POST.
+ *  v   Реализация HEAD/GET/POST.
  *  v   Статусы 200 и 404
  *  v   В каталоге <dir> - html и jpeg файлы
  *
  *  8 апреля (Коллоквиум)
  */
 //-----------------------------------------
-#define STR_IP_LEN 16
-typedef struct http_server_config srv_conf;
+#define  HTTP_SERVER_NAME    "http-server-pract#3"
+#define  HTTP_IP_STR_LENGTH  16
+
+typedef struct http_server_config  srv_conf;
 struct  http_server_config
 {
   uint16_t  port;
-  char      ip[STR_IP_LEN];
-  char     *path;
+  char      ip[HTTP_IP_STR_LENGTH];
+  //-----------------------
+  struct evbuffer *folder_path;
+  struct evbuffer *server_path;
+  //-----------------------
+  // struct evbuffer *buffer_temp;
+  char *server_name;
+  //-----------------------
  };
+struct http_server_config  server_conf = { 0 };
 //-----------------------------------------
 int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip);
 void  http_server_config_print (srv_conf *conf, FILE *stream);
@@ -38,8 +47,11 @@ struct client
    */
   struct bufferevent     *b_ev;
   struct event_base      *base;
+  //---------------------------
   struct evbuffer      *buffer;
+  //---------------------------
   struct http_request  request;
+  struct http_request  response;
 };
 //-----------------------------------------
 // void  http_ac_err_cb (struct evconnlistener *listener, void *arg);

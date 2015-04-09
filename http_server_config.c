@@ -30,7 +30,17 @@ int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip
     conf->port = 8080;
   }
 
-  if ( !(conf->path = (char*) malloc (sizeof (char) * (strlen (path) + 1U))) )
+  struct stat sb;
+  if ( stat (path, &sb) == 0 && S_ISDIR (sb.st_mode) )
+  {
+    printf ("YES\n");
+  }
+  else
+  {
+    printf ("NO\n");
+  }
+
+  if ( !(conf->folder_path = (char*) malloc (sizeof (char) * (strlen (path) + 1U))) )
     return 1;
 
   strcpy (conf->ip,     ip);
