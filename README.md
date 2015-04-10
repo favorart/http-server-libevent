@@ -1,12 +1,12 @@
 # Home work #1: HTTP server 
 
 Technosphere.mail.ru 2015
-using libevent
+   using libevent
 
 console arguments:
-  + -h/--ip   <server ip adress>
-  + -p/--port <listening port>
-  + -d/--dir  <folder with files>
+  + -h/--ip   [server ip adress]
+  + -p/--port [listening port]
+  + -d/--dir  [folder with files]
 
 supports
 requests:
