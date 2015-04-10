@@ -1,7 +1,8 @@
 # Home work #1: HTTP server 
 
 Technosphere.mail.ru 2015
-   using libevent
+
+using libevent
 
 console arguments:
   + -h/--ip   [server ip adress]
@@ -10,7 +11,7 @@ console arguments:
 
 supports
 requests:
-  +  GET (html/jpeg) in a given folder,
+  +  GET (html/jpeg files),
   +  HEAD,
   +  POST (just 200 answer)
   
