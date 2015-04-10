@@ -10,12 +10,12 @@ console arguments:
   + -d/--dir  [folder with files]
 
 supports
-requests:
+1. requests:
   +  GET (html/jpeg files),
   +  HEAD,
   +  POST (just 200 answer)
   
-responses:
+2. responses:
   +  200
   +  404
   
