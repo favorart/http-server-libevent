@@ -50,7 +50,7 @@ void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
 
   /* Create new bufferized event, linked with client's socket */
   Client->b_ev = bufferevent_socket_new (base, SlaveSocket, BEV_OPT_CLOSE_ON_FREE);
-  bufferevent_setcb  (Client->b_ev, http_read_cb, http_write_cb, http_error_cb, Client);
+  bufferevent_setcb  (Client->b_ev, http_read_cb, NULL /* http_write_cb */ , http_error_cb, Client);
   /* Ready to get data */
   bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
 
@@ -61,40 +61,21 @@ void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
 //-----------------------------------------
 void  http_read_cb  (struct bufferevent *b_ev, void *arg)
 {
-  size_t  recv_length = 0U;
-  char   *recv_string = NULL;
-
   struct client  *Client = (struct client*) arg;
   /* This callback is invoked when there is data to read on b_ev_read */
-  struct evbuffer  * in_buf = bufferevent_get_input  (Client->b_ev);
-
-  if ( !(recv_length = (evbuffer_get_length (in_buf) + 1U)) )
-    return;
-  if ( !(recv_string = (char*) calloc (recv_length, sizeof (char))) )
-  { fprintf (stderr, "%s\n",strerror (errno));
-    return;
-  }
-
-  evbuffer_remove (in_buf, recv_string, recv_length);
-  recv_string[recv_length] = '\0';
-  http_request_parse (&Client->request, recv_string, recv_length);
-  free (recv_string);
+  http_request_parse (&Client->request, bufferevent_get_input (b_ev));
 
 #ifdef _DEBUG
   printf ("request reseived\n");
 #endif
 
+  /* Copy all the data from the input buffer to the output buffer. */
   http_response_make (&Client->request, bufferevent_get_output (b_ev));
-  http_request_free  (&Client->request);
-
   bufferevent_setwatermark (b_ev, EV_WRITE, 0, 0);
 
 #ifdef _DEBUG
   printf ("response ready\n");
 #endif
-
-  /* Copy all the data from the input buffer to the output buffer. */
-  // evbuffer_add_buffer (out_buf, in_buf);
 }
 void  http_write_cb (struct bufferevent *b_ev, void *arg)
 {
@@ -112,7 +93,12 @@ void  http_write_cb (struct bufferevent *b_ev, void *arg)
 void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
 {
   struct client *Client = (struct client*) arg;
-
+#ifdef _DEBUG
+  if ( events & BEV_EVENT_EOF )
+  {
+    printf ("Got a close. Len = %u\n", evbuffer_get_length (bufferevent_get_output (b_ev)));
+  }
+#endif
   if ( events & BEV_EVENT_ERROR )
   {
     fprintf (stderr, "Error from bufferevent: '%s'\n",

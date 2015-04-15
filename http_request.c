@@ -9,13 +9,13 @@ const char*  strmyerror ()
   const char* strerr;
 
   switch ( my_errno )
-  {
-    default: strerr = NULL;                             break;
-    case HTTP_ERR_PORT: strerr = "Incorrect port.";                break;
-    case HTTP_ERR_PARAM: strerr = "Invalid function's parameter.";  break;
-    case HTTP_ERR_INPUT: strerr = "Input incorrect user data.";     break;
-    case HTTP_ERR_LIBEV: strerr = "Problem with libevent entity.";  break;
-    case HTTP_ERR_RCMMN: strerr = "Incorrect request command.";     break;
+  { default: strerr = NULL;                                      break;
+
+    case HTTP_ERR_NPORT : strerr = "Incorrect port.";            break;
+    case HTTP_ERR_PARAM : strerr = "Invalid function argument."; break;
+    case HTTP_ERR_INPUT : strerr = "Input incorrect user data."; break;
+    case HTTP_ERR_LIBEV : strerr = "Incorrect libevent entity."; break;
+    case HTTP_ERR_RCMMN : strerr = "Incorrect request command."; break;
   }
 
   my_errno = HTTP_ERR_NONE;
@@ -29,12 +29,14 @@ int  http_request_init  (struct http_request *req)
 }
 void http_request_free  (struct http_request *req)
 {
- free (req->content);
- free (req->path);
+ // free (req->content);
+ // free (req->path);
  memset (req, 0, sizeof (*req));
 }
+
+#define HTTP_PATH_LENGTH 1025
 //-----------------------------------------
-int  http_request_parse_new (struct http_request *req, struct evbuffer *buffer)
+int  http_request_parse (struct http_request *req, struct evbuffer *buffer)
 {
 #define  HTTP_HEAD_CLOSER           "\r\n\r\n"
 #define  HTTP_HEAD_CLOSER_LENGTH    sizeof(HTTP_HEAD_CLOSER)
@@ -46,9 +48,8 @@ int  http_request_parse_new (struct http_request *req, struct evbuffer *buffer)
     return -1;
   }
   //-----------------------------------------------------------------  
-  // size_t  head_length;
-  struct evbuffer_ptr  head_closer = evbuffer_search (buffer, HTTP_HEAD_CLOSER,
-                                                      HTTP_HEAD_CLOSER_LENGTH, NULL);
+  struct evbuffer_ptr  head_closer;
+  head_closer = evbuffer_search (buffer, HTTP_HEAD_CLOSER, HTTP_HEAD_CLOSER_LENGTH, NULL);
   if ( head_closer.pos == -1 )
   { my_errno = HTTP_ERR_INPUT;
     fprintf (stderr, "%s\n", strmyerror ());
@@ -58,7 +59,6 @@ int  http_request_parse_new (struct http_request *req, struct evbuffer *buffer)
   { evbuffer_drain (buffer, HTTP_HEAD_CLOSER_LENGTH);
     return 0;
   }
-  // head_length  = head_closer.pos;
   // evbuffer_ptr_set (buffer, &head_closer, HTTP_HEAD_CLOSER_LENGTH, EVBUFFER_PTR_ADD);
 
   struct evbuffer *header = evbuffer_new ();
@@ -76,54 +76,53 @@ int  http_request_parse_new (struct http_request *req, struct evbuffer *buffer)
 #undef  HTTP_HEAD_CLOSER       
 #undef  HTTP_HEAD_CLOSER_LENGTH
 }
-int  http_headpart_parse (struct http_request *req, struct evbuffer *buffer)
+int  http_header_parse (struct http_request *req, struct evbuffer *buffer)
 {
-  const char  **http_commands = { "HEAD", "GET", "POST" };
-  http_type    *http_types    = { HTTP_REQ_HEAD, HTTP_REQ_GET, HTTP_REQ_POST };
-  int           http_types_sz = sizeof (http_types) / sizeof (*http_types);
-  const char   *http_version = "HTTP/1.0";
+  const char   *http_command_strs[] = { "HEAD", "GET", "POST" };
+  http_type     http_command_enum[] = { HTTP_REQ_HEAD, HTTP_REQ_GET, HTTP_REQ_POST };
+  const size_t  http_command_size   = sizeof (http_command_enum) / sizeof (*http_command_enum);
 
-  int result = 0;
+  const char   *http_version        = "HTTP/1.0";
+  const size_t  http_version_size   = sizeof (http_version) / sizeof (*http_version);
+
+  int  result = 0;
   //-----------------------------------------------------------------
-  {
-    char *first_space, *second_space, *first_enter, *second_enter;
-
-    first_space = strchr (buffer, ' ');
-    if ( !first_space || (first_space - buffer) > 4 )
-    {
-      my_errno = HTTP_ERR_RCMMN;
-      fprintf (stderr, "%s\n", strmyerror ());
-      return 1;
-    }
-
-    if ( !(second_space = strchr (first_space + 1, ' ')) )
-    {
-      my_errno = HTTP_ERR_INPUT;
-      fprintf (stderr, "%s\n", strmyerror ());
-      return 1;
-    }
-
-    if ( !(first_enter = strstr (second_space, "\r\n")) )
-    {
-      my_errno = HTTP_ERR_INPUT;
-      fprintf (stderr, "%s\n", strmyerror ());
-      return 1;
-    }
-  }
+  // {
+  //   char *first_space, *second_space, *first_enter, *second_enter;
+  // 
+  //   first_space = strchr (buffer, ' ');
+  //   if ( !first_space || (first_space - buffer) > 4 )
+  //   {
+  //     my_errno = HTTP_ERR_RCMMN;
+  //     fprintf (stderr, "%s\n", strmyerror ());
+  //     return 1;
+  //   }
+  // 
+  //   if ( !(second_space = strchr (first_space + 1, ' ')) )
+  //   {
+  //     my_errno = HTTP_ERR_INPUT;
+  //     fprintf (stderr, "%s\n", strmyerror ());
+  //     return 1;
+  //   }
+  // 
+  //   if ( !(first_enter = strstr (second_space, "\r\n")) )
+  //   {
+  //     my_errno = HTTP_ERR_INPUT;
+  //     fprintf (stderr, "%s\n", strmyerror ());
+  //     return 1;
+  //   }
+  // }
   //-----------------------------------------------------------------
   struct evbuffer_ptr  req_type, req_version;
-  
-  evbuffer_readline;
-  evbuffer_readln;
-
-  req_version = evbuffer_search (buffer, http_version,
-                                 sizeof (http_version), NULL);
-  //-----------------------------------------------------------------
-  for ( int i = 0; i < http_types_sz; ++i )
-  { req_type = evbuffer_search (buffer, http_version,
-                                sizeof (http_version), NULL);
+  for ( int i = 0; i < http_command_size; ++i )
+  {
+    req_type = evbuffer_search (buffer, http_command_strs[i],
+                                strlen (http_command_strs[i]), NULL);
     if ( req_type.pos != -1 )
+    {
+      req->type = http_command_enum[i];
       break;
+    }
   }
   if ( req_type.pos == -1 )
   {
@@ -132,17 +131,28 @@ int  http_headpart_parse (struct http_request *req, struct evbuffer *buffer)
     result = 1;
     goto REQ_FREE;
   }
+
+  // evbuffer_readline;
+  // evbuffer_readln;
+
+  req_version = evbuffer_search (buffer, http_version, http_version_size, NULL);
+  //-----------------------------------------------------------------
+  char path[HTTP_PATH_LENGTH];
+  size_t path_len = evbuffer_get_length (server_conf.folder_path);
+  evbuffer_copyout (server_conf.folder_path, path, path_len);
+  // evbuffer_copyout ();
   //-----------------------------------------------------------------
   /* reseive the exact path to required file */
   // evbuffer_search (buffer, );
   evbuffer_copyout (server_conf.folder_path, req->file_path,
                     evbuffer_get_length (server_conf.folder_path));
-  if ( )
+  if ( 1 )
+  {}
 
-  evbuffer_remove  (buffer, req->file_path, path_length);
+  // evbuffer_remove  (buffer, req->file_path, path_length);
 
 
-
+  
   //-----------------------------------------------------------------
   // "html", "htm" HTTP_EXT_HTML "jpeg" "jpg"  req->content_type HTTP_EXT_JPEG;
 
@@ -177,167 +187,233 @@ REQ_FREE:;
 #undef  HTTP_REQUEST_GET 
 #undef  HTTP_REQUEST_POST
 }
-
-int  http_request_parse (http_req *req, char *buffer, size_t buffer_length)
-{
-  int   result = 0;
-  char *first_space, *second_space, *first_enter, *second_enter;
-  //-----------------------------------------------------------------
-  if ( !buffer )
-  {
-    my_errno = HTTP_ERR_PARAM;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-  //-----------------------------------------------------------------
-  first_space = strchr (buffer, ' ');
-  if ( !first_space || (first_space - buffer) > 4 )
-  {
-    my_errno = HTTP_ERR_RCMMN;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  if ( !(second_space = strchr (first_space + 1, ' ')) )
-  { my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-
-  if ( !( first_enter = strstr (second_space, "\r\n")) )
-  { my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-  // TODO: check for exact string "HTTP/1.0"
-  //-----------------------------------------------------------------
-  char command[5] = { 0 };
-  strncpy (command, buffer, first_space - buffer);
-
-       if ( !strcmp (command, "HEAD") ) req->type = HTTP_REQ_HEAD;
-  else if ( !strcmp (command, "GET" ) ) req->type = HTTP_REQ_GET;
-  else if ( !strcmp (command, "POST") ) req->type = HTTP_REQ_POST;
-  else
-  { my_errno = HTTP_ERR_RCMMN;
-    fprintf (stderr, "%s\n", strmyerror ());
-    return 1;
-  }
-  //-----------------------------------------------------------------
-  /* reseive the exact path to required file */
-  req->path_size = (second_space - first_space);
-  if ( !(req->path = calloc (req->path_size, sizeof (char))) )
-  { fprintf (stderr, "%s\n", strerror (errno));
-    result = 1;
-    goto REQ_FREE;
-  }
-  strncpy (req->path, first_space + 1U, req->path_size - 1U);
-
-  char *char_dot = NULL;
-  if ( !(char_dot = strrchr (req->path, '.')) )
-  { my_errno = HTTP_ERR_RCMMN;
-    fprintf (stderr, "%s\n", strmyerror ());
-    result = 1;
-    goto REQ_FREE;
-  }
-  ++char_dot;
-
-       if ( !strcmp (char_dot, "html")
-         || !strcmp (char_dot, "htm")) req->content_type = HTTP_EXT_HTML;
-  else if ( !strcmp (char_dot, "jpeg")
-         || !strcmp (char_dot, "jpg")) req->content_type = HTTP_EXT_JPEG;
-  else
-  { my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    result = 1;
-    goto REQ_FREE;
-  }
-  //-----------------------------------------------------------------
-  // TODO: Read the Headers: Content-length, file-type
-  //-----------------------------------------------------------------
-  if ( !(second_enter  = strstr (first_space, "\r\n\r\n")) )
-  { my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
-    result = 1;
-    goto REQ_FREE;
-  }
-  else   second_enter += 4;
-
-  req->content_size = ((buffer + buffer_length) - second_enter + 1U);
-  /* read out the full content from the user request */
-  if (   req->content_size && 
-       !(req->content = (char *) calloc (req->content_size, sizeof (char))) )
-  { fprintf (stderr, "%s\n", strerror (errno));
-    result = 1;
-    goto REQ_FREE;
-  }
-  strncpy (req->content, second_enter, req->content_size - 1U);
-
-  /* Check for existence */
-  req->file_exist = (access (req->path, 0) != -1);
-  //-----------------------------------------------------------------
-#ifdef _DEBUG
-  printf ("request: %s\n\n", req->path);
-#endif
-REQ_FREE:;
-  if ( result )
-    http_request_free (req);
-  //-----------------------------------------------------------------
-  return 0;
-}
 int  http_response_make (http_req *req, struct evbuffer *out_buf)
 {
   if ( req->type == HTTP_REQ_NONE || req->type == HTTP_RESPONSE )
     return 0;
-
+ 
   if ( req->file_exist )
   {
+    size_t content_len = 0;
+    //----------------------------------------------------------------
     const char *content_type = (req->content_type == HTTP_EXT_HTML) ? "text/html; charset=utf-8" :
                                (req->content_type == HTTP_EXT_JPEG) ? "image/jpg" : "";
     const char *connection = "close";
-
-    // req->type = HTTP_RESPONSE;
-    free (req->content);
+    const char *response_time[30];
     //----------------------------------------------------------------
-    FILE *fd = fopen (req->path, "r");
-    if ( !fd )
-    { fprintf (stderr, "%s\n", strerror (errno));
-      return 1;
-    }
-    fseek (fd, 0L, SEEK_END);
-    req->content_size = ftell (fd);
-    fseek (fd, 0L, SEEK_SET);
+    time_t timev;
+    time (&timev);
+    struct tm  *timeinfo = localtime (&timev);
+    strftime (response_time, 30, "%d-%m-%Y %I:%M:%S", timeinfo);
     //----------------------------------------------------------------
-    if ( !(req->content = (char*) calloc (req->content_size + 1U, sizeof (char))) )
-    { fprintf (stderr, "%s\n", strerror (errno));
-      req->content_size = 0;
-      fclose (fd);
-      return 1;    
-    }
-    fread (req->content, sizeof (char), req->content_size, fd);
-    //----------------------------------------------------------------
-    fclose (fd);
-
-#ifdef _DEBUG
-    printf ("response: %s\n\n", HTTP_RESPONSE_200);
-#endif
-
     evbuffer_add_printf (out_buf, "%s\r\n"
+                         "Server: %s\r\n"
+                         "Time: %s\r\n"
                          "Content-Type: %s\r\n"
                          "Content-Length: %u\r\n"
                          "Connection: %s\r\n\r\n%s",
                          HTTP_RESPONSE_200,
+                         server_conf.server_name,
+                         response_time,
                          content_type,
-                         req->content_size,
+                         content_len,
                          connection,
                          req->content);
+    //----------------------------------------------------------------
+    // evbuffer_copyout (req->file_path, path, -1);
+    int fd = open (req->file_path, O_RDONLY);
+    if ( fd < 0 )
+    {
+      fprintf (stderr, "%s\n", strerror (errno));
+      // error (1, errno, "open");
+      return 1;
+    }
+    
+    struct stat stat_;
+    fstat (fd, &stat_);
+    evbuffer_add_file (out_buf, fd, 0, stat_.st_size);
+    // assert (!evbuffer_add_file (out_buf, fd, 0, stat_.st_size));
+    //----------------------------------------------------------------
+    close (fd);
+ 
+#ifdef _DEBUG
+    printf ("response: %s\n\n", HTTP_RESPONSE_200);
+#endif
+ 
+    
   }
   else
   {
     evbuffer_add_printf (out_buf, "%s\r\n", HTTP_RESPONSE_404);
   }
-
+ 
   return 0;
 }
+
+// int  http_request_parse (http_req *req, char *buffer, size_t buffer_length)
+// {
+//   int   result = 0;
+//   char *first_space, *second_space, *first_enter, *second_enter;
+//   //-----------------------------------------------------------------
+//   if ( !buffer )
+//   {
+//     my_errno = HTTP_ERR_PARAM;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     return 1;
+//   }
+//   //-----------------------------------------------------------------
+//   first_space = strchr (buffer, ' ');
+//   if ( !first_space || (first_space - buffer) > 4 )
+//   {
+//     my_errno = HTTP_ERR_RCMMN;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     return 1;
+//   }
+// 
+//   if ( !(second_space = strchr (first_space + 1, ' ')) )
+//   { my_errno = HTTP_ERR_INPUT;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     return 1;
+//   }
+// 
+//   if ( !( first_enter = strstr (second_space, "\r\n")) )
+//   { my_errno = HTTP_ERR_INPUT;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     return 1;
+//   }
+//   // TODO: check for exact string "HTTP/1.0"
+//   //-----------------------------------------------------------------
+//   char command[5] = { 0 };
+//   strncpy (command, buffer, first_space - buffer);
+// 
+//        if ( !strcmp (command, "HEAD") ) req->type = HTTP_REQ_HEAD;
+//   else if ( !strcmp (command, "GET" ) ) req->type = HTTP_REQ_GET;
+//   else if ( !strcmp (command, "POST") ) req->type = HTTP_REQ_POST;
+//   else
+//   { my_errno = HTTP_ERR_RCMMN;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     return 1;
+//   }
+//   //-----------------------------------------------------------------
+//   /* reseive the exact path to required file */
+//   req->path_size = (second_space - first_space);
+//   if ( !(req->path = calloc (req->path_size, sizeof (char))) )
+//   { fprintf (stderr, "%s\n", strerror (errno));
+//     result = 1;
+//     goto REQ_FREE;
+//   }
+//   strncpy (req->path, first_space + 1U, req->path_size - 1U);
+// 
+//   char *char_dot = NULL;
+//   if ( !(char_dot = strrchr (req->path, '.')) )
+//   { my_errno = HTTP_ERR_RCMMN;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     result = 1;
+//     goto REQ_FREE;
+//   }
+//   ++char_dot;
+// 
+//        if ( !strcmp (char_dot, "html")
+//          || !strcmp (char_dot, "htm")) req->content_type = HTTP_EXT_HTML;
+//   else if ( !strcmp (char_dot, "jpeg")
+//          || !strcmp (char_dot, "jpg")) req->content_type = HTTP_EXT_JPEG;
+//   else
+//   { my_errno = HTTP_ERR_INPUT;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     result = 1;
+//     goto REQ_FREE;
+//   }
+//   //-----------------------------------------------------------------
+//   // TODO: Read the Headers: Content-length, file-type
+//   //-----------------------------------------------------------------
+//   if ( !(second_enter  = strstr (first_space, "\r\n\r\n")) )
+//   { my_errno = HTTP_ERR_INPUT;
+//     fprintf (stderr, "%s\n", strmyerror ());
+//     result = 1;
+//     goto REQ_FREE;
+//   }
+//   else   second_enter += 4;
+// 
+//   req->content_size = ((buffer + buffer_length) - second_enter + 1U);
+//   /* read out the full content from the user request */
+//   if (   req->content_size && 
+//        !(req->content = (char *) calloc (req->content_size, sizeof (char))) )
+//   { fprintf (stderr, "%s\n", strerror (errno));
+//     result = 1;
+//     goto REQ_FREE;
+//   }
+//   strncpy (req->content, second_enter, req->content_size - 1U);
+// 
+//   /* Check for existence */
+//   req->file_exist = (access (req->path, 0) != -1);
+//   //-----------------------------------------------------------------
+// #ifdef _DEBUG
+//   printf ("request: %s\n\n", req->path);
+// #endif
+// REQ_FREE:;
+//   if ( result )
+//     http_request_free (req);
+//   //-----------------------------------------------------------------
+//   return 0;
+// }
+
+
+// int  http_response_make (http_req *req, struct evbuffer *out_buf)
+// {
+//   if ( req->type == HTTP_REQ_NONE || req->type == HTTP_RESPONSE )
+//     return 0;
+// 
+//   if ( req->file_exist )
+//   {
+//     const char *content_type = (req->content_type == HTTP_EXT_HTML) ? "text/html; charset=utf-8" :
+//                                (req->content_type == HTTP_EXT_JPEG) ? "image/jpg" : "";
+//     const char *connection = "close";
+// 
+//     // req->type = HTTP_RESPONSE;
+//     free (req->content);
+//     //----------------------------------------------------------------
+//     FILE *fd = fopen (req->path, "r");
+//     if ( !fd )
+//     { fprintf (stderr, "%s\n", strerror (errno));
+//       return 1;
+//     }
+//     fseek (fd, 0L, SEEK_END);
+//     req->content_size = ftell (fd);
+//     fseek (fd, 0L, SEEK_SET);
+//     //----------------------------------------------------------------
+//     if ( !(req->content = (char*) calloc (req->content_size + 1U, sizeof (char))) )
+//     { fprintf (stderr, "%s\n", strerror (errno));
+//       req->content_size = 0;
+//       fclose (fd);
+//       return 1;    
+//     }
+//     fread (req->content, sizeof (char), req->content_size, fd);
+//     //----------------------------------------------------------------
+//     fclose (fd);
+// 
+// #ifdef _DEBUG
+//     printf ("response: %s\n\n", HTTP_RESPONSE_200);
+// #endif
+// 
+//     evbuffer_add_printf (out_buf, "%s\r\n"
+//                          "Content-Type: %s\r\n"
+//                          "Content-Length: %u\r\n"
+//                          "Connection: %s\r\n\r\n%s",
+//                          HTTP_RESPONSE_200,
+//                          content_type,
+//                          req->content_size,
+//                          connection,
+//                          req->content);
+//   }
+//   else
+//   {
+//     evbuffer_add_printf (out_buf, "%s\r\n", HTTP_RESPONSE_404);
+//   }
+// 
+//   return 0;
+// }
+
+
 // #define MAXPATH	  255
 // #define MAXBUF  	10000
 // 

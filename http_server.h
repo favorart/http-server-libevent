@@ -26,7 +26,6 @@ struct  http_server_config
   struct evbuffer *folder_path;
   struct evbuffer *server_path;
   //-----------------------
-  // struct evbuffer *buffer_temp;
   char *server_name;
   //-----------------------
  };

@@ -25,37 +25,37 @@ int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip
 
   if ( !port || (conf->port = atoi (port)) <= 0 || conf->port > max_port )
   {
-    my_errno = HTTP_ERR_PORT;
+    my_errno = HTTP_ERR_NPORT;
     fprintf (stderr, "%s\n", strmyerror ());    
     conf->port = 8080;
   }
 
-  struct stat sb;
-  if ( stat (path, &sb) == 0 && S_ISDIR (sb.st_mode) )
-  {
-    printf ("YES\n");
-  }
-  else
-  {
-    printf ("NO\n");
-  }
+  // struct stat sb;
+  // if ( stat (path, &sb) == 0 && S_ISDIR (sb.st_mode) )
+  // {
+  //   printf ("YES\n");
+  // }
+  // else
+  // {
+  //   printf ("NO\n");
+  // }
 
   if ( !(conf->folder_path = (char*) malloc (sizeof (char) * (strlen (path) + 1U))) )
     return 1;
 
-  strcpy (conf->ip,     ip);
-  strcpy (conf->path, path);
-  
+  strcpy (conf->ip, ip);
+  strcpy (conf->folder_path, path);
+
   return 0;
 }
 void  http_server_config_print (srv_conf *conf, FILE *stream)
 {
   fprintf (stream, ">>> http server config:\n\n\tpath: '%s'\n\tport: %d   ip: %s\n\n",
-           conf->path, conf->port, conf->ip);
+           conf->folder_path, conf->port, conf->ip);
 }
 void  http_server_config_free  (srv_conf *conf)
 {
-  free   (conf->path);
+  free   (conf->folder_path);
   memset (conf, 0, sizeof (*conf));
 }
 //-----------------------------------------

@@ -16,7 +16,7 @@ typedef enum { HTTP_REQ_NONE, HTTP_REQ_HEAD, HTTP_REQ_GET,
                HTTP_REQ_POST, HTTP_RESPONSE  /* , ... */   } http_type;
 typedef enum { HTTP_EXT_NONE, HTTP_EXT_HTML, HTTP_EXT_JPEG } file_ext;
 
-#define HTTP_VERSION_LENGTH  5
+//#define HTTP_VERSION_LENGTH  5
 typedef struct http_request http_req;
 struct  http_request
 {
@@ -30,7 +30,7 @@ struct  http_request
  // size_t       content_size; // v
  file_ext        content_type; // v
  //------------------
- char       http_version[HTTP_VERSION_LENGTH];
+ //char       http_version[HTTP_VERSION_LENGTH];
  bool       file_exist;   // v
  //------------------
 };
