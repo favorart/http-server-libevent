@@ -3,13 +3,14 @@
 #include "http_server.h"
 #include "http_request.h"
 
+struct http_server_config  server_conf = { 0 };
 //-----------------------------------------
-/*   Для того, чтобы начать работать с буферизированным вводом/выводом необходимо:
+/*   Работа с буферизированным вводом/выводом состоит из следующих этапов:
  *   —  инициализировать структуру bufferevent вызовом bufferevent_new (),
  *      указав функции для обратного вызова на события
  *      чтения (необязательно), записи (необязательно) и ошибки (обязательно);
  *   —  Привязать это событие к локальной событийной базе (event_base) вызовом bufferevent_base_set ();
- *   —  Включать или выключать обработчики чтения/записи вызовами bufferevent_enable ()/bufferevent_disable ();
+ *   —  Включать или выключать обработчики чтения / записи вызовами bufferevent_enable () / bufferevent_disable ();
  *   —  Читать и писать вызовами bufferevent_read () и bufferevent_write () соответственно.
  *   Стоит отметить, что обработчик чтения будет вызван после того, как в буфере накопится весь пакет
  *   или закроется подключение, а обработчик записи — когда отправляемый буфер отправлен либо полностью,
@@ -54,42 +55,13 @@ void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
   /* Ready to get data */
   bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
 
+  http_request_init (&Client->request);
+  // bufferevent_setwatermark (Client->b_ev, EV_WRITE, 0, 0);
 #ifdef _DEBUG
   printf ("connection established\n");
 #endif
 }
 //-----------------------------------------
-void  http_read_cb  (struct bufferevent *b_ev, void *arg)
-{
-  struct client  *Client = (struct client*) arg;
-  /* This callback is invoked when there is data to read on b_ev_read */
-  http_request_parse (&Client->request, bufferevent_get_input (b_ev));
-
-#ifdef _DEBUG
-  printf ("request reseived\n");
-#endif
-
-  /* Copy all the data from the input buffer to the output buffer. */
-  http_response_make (&Client->request, bufferevent_get_output (b_ev));
-  bufferevent_setwatermark (b_ev, EV_WRITE, 0, 0);
-
-#ifdef _DEBUG
-  printf ("response ready\n");
-#endif
-}
-void  http_write_cb (struct bufferevent *b_ev, void *arg)
-{
-  struct client *Client = (struct client*) arg;
-  
-  // bufferevent_write
-  // bufferevent_write_buffer ()
-#ifdef _DEBUG
-  printf ("write event\n");
-#endif
-
-  // http_response_make (&Client->request, bufferevent_get_output (b_ev));
-  // bufferevent_write_buffer (b_ev, ev_buf);
-}
 void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
 {
   struct client *Client = (struct client*) arg;
@@ -105,13 +77,47 @@ void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
              evutil_socket_error_to_string (EVUTIL_SOCKET_ERROR ()));
   }
   if ( events & (BEV_EVENT_EOF | BEV_EVENT_ERROR) )
-  { 
+  {
     http_request_free (&Client->request);
-    bufferevent_free  ( Client->b_ev);
-  
+    bufferevent_free (Client->b_ev);
+
     free (Client);
   }
 }
+void  http_read_cb  (struct bufferevent *b_ev, void *arg)
+{
+  struct client  *Client = (struct client*) arg;
+  /* This callback is invoked when there is data to read on b_ev_read */
+
+#ifdef _DEBUG
+  printf ("request reseived\n");
+#endif // _DEBUG
+
+  while ( evbuffer_get_length (bufferevent_get_input (b_ev)) )
+  {
+    http_request_parse (&Client->request, bufferevent_get_input (b_ev));
+    /* Copy all the data from the input buffer to the output buffer. */
+    http_response_make (&Client->request, bufferevent_get_output (b_ev));
+  }
+
+#ifdef _DEBUG
+  printf ("response ready\n");
+#endif // _DEBUG
+}
+// void  http_write_cb (struct bufferevent *b_ev, void *arg)
+// { struct client *Client = (struct client*) arg;   
+//   // bufferevent_write
+//   // bufferevent_write_buffer ()
+// #ifdef _DEBUG
+//   printf ("write event\n");
+// #endif
+//   // http_response_make (&Client->request, bufferevent_get_output (b_ev));
+//   // bufferevent_write_buffer (b_ev, ev_buf);
+// }
+//-----------------------------------------
+// void  http_ac_err_cb (struct evconnlistener *listener, void *arg);
+// void  http_accept_cb (struct evconnlistener *listener, evutil_socket_t fd,
+//                       struct sockaddr *address, int socklen, void *arg);
 //-----------------------------------------
 // void  on_read (evutil_socket_t fd, short ev, void *arg)
 // {

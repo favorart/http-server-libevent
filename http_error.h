@@ -5,9 +5,11 @@
 
 #define _DEBUG
 //-----------------------------------------
-typedef enum { HTTP_ERR_NONE,  HTTP_ERR_NPORT, HTTP_ERR_PARAM,
-               HTTP_ERR_INPUT, HTTP_ERR_LIBEV, HTTP_ERR_RCMMN } myerr;
+typedef enum { HTTP_ERR_NONE,  HTTP_ERR_PARAM,
+               HTTP_ERR_INPUT, HTTP_ERR_LIBEV,
+               HTTP_ERR_RCMMN, HTTP_ERR_RFREE } myerr;
 myerr my_errno;
-const char*  strmyerror ();
+//-----------------------------------------
+const char*  strmyerror (void);
 //-----------------------------------------
 #endif // _HTTP_ERR_H_

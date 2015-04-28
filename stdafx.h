@@ -9,12 +9,14 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <time.h>
 //-----------------------------------------
 #include <event.h>
 //-----------------------------------------
 #include <errno.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
