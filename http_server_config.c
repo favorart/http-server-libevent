@@ -29,12 +29,12 @@ int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip
   struct stat sb;
   if ( path && stat (path, &sb) == 0 && S_ISDIR (sb.st_mode) )
   {
-    my_errno = HTTP_ERR_INPUT;
-    fprintf (stderr, "%s\n", strmyerror ());
     strcpy (conf->folder_path, path);
   }
   else
   {
+    my_errno = HTTP_ERR_INPUT;
+    fprintf (stderr, "%s\n", strmyerror ());
     strcpy (conf->folder_path, "data/");
   }
   //-----------------------
@@ -44,6 +44,8 @@ int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip
   }
   else
   {
+    my_errno = HTTP_ERR_INPUT;
+    fprintf (stderr, "%s\n", strmyerror ());
     strcpy (conf->ip, "0.0.0.0");
   }
   //-----------------------
