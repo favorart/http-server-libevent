@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 
 #ifndef _HTTP_REQ_H_
 #define _HTTP_REQ_H_

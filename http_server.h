@@ -1,15 +1,15 @@
-#include "stdafx.h"
+п»ї#include "stdafx.h"
 #include "http_request.h"
 
 #ifndef _HTTP_SERVER_H_
 #define _HTTP_SERVER_H_
 /*
- *  v   Создать HTTP-сервер.
- *  v   Сборка через make.
- *  v   Запуск:  ./wwwd -d/--dir <dir> -h/--ip <ip> -p/--port <port> -w/--workers <num>
- *  v   Реализация HEAD/GET/POST
- *  v   Статусы 200 и 404
- *  v   В каталоге <dir> - html и jpeg файлы
+ *  v   РЎРѕР·РґР°С‚СЊ HTTP-СЃРµСЂРІРµСЂ.
+ *  v   РЎР±РѕСЂРєР° С‡РµСЂРµР· make.
+ *  v   Р—Р°РїСѓСЃРє:  ./wwwd -d/--dir <dir> -h/--ip <ip> -p/--port <port> -w/--workers <num>
+ *  v   Р РµР°Р»РёР·Р°С†РёСЏ HEAD/GET/POST
+ *  v   РЎС‚Р°С‚СѓСЃС‹ 200 Рё 404
+ *  v   Р’ РєР°С‚Р°Р»РѕРіРµ <dir> - html Рё jpeg С„Р°Р№Р»С‹
  */
 //-----------------------------------------
 #define  HTTP_SERVER_NAME  "http-server-hw"

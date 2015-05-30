@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 
 #ifndef _HTTP_ERR_H_
 #define _HTTP_ERR_H_
