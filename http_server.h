@@ -12,6 +12,22 @@
  *  v   В каталоге <dir> - html и jpeg файлы
  */
 //-----------------------------------------
+#define CHWMSG_MAXLEN 5
+typedef enum { CHWMSG_NONE = 0, CHWMSG_TERM, CHWMSG_TASK } chwmsg_enum;
+typedef int     fd_t;
+typedef uint8_t wc_t;
+typedef struct child_worker chw_t;
+struct child_worker
+{
+  pid_t pid;
+  fd_t  fd;
+};
+//-----------------------------------------
+int  child_worker_init (chw_t *chw);
+void child_worker_free (chw_t *chw);
+int  child_worker_send (chw_t *chw, chwmsg_enum  msg, fd_t  fd);
+int  child_worker_recv (chw_t *chw, chwmsg_enum *msg, fd_t *fd);
+//-----------------------------------------
 #define  HTTP_SERVER_NAME  "http-server-hw"
 #define  HTTP_IPSTRLENGTH  16U
 #define  HTTP_MAX_WORKERS  16U
@@ -19,7 +35,6 @@
 typedef struct http_server_config  srv_conf;
 struct  http_server_config
 {
-  uint16_t   workers;
   uint16_t   port;
   char       ip[HTTP_IPSTRLENGTH];
   //-----------------------
@@ -28,6 +43,10 @@ struct  http_server_config
   char  server_path[FILENAME_MAX];
   //-----------------------
   char *ptr_server_name;
+  //-----------------------
+  wc_t      workers;
+  chw_t    *myself;
+  chw_t    *child_workers;
   //-----------------------
  };
 extern struct http_server_config  server_conf;
@@ -53,6 +72,8 @@ struct client
 //-----------------------------------------
 void  http_accept_cb (evutil_socket_t fd, short ev, void *arg);
 void  http_ac_err_cb (evutil_socket_t fd, short ev, void *arg);
+//-----------------------------------------
+void  http_connect_cb (evutil_socket_t fd, short ev, void *arg);
 //-----------------------------------------
 void  http_read_cb   (struct bufferevent *b_ev, void *arg);
 void  http_error_cb  (struct bufferevent *b_ev, short events, void *arg);

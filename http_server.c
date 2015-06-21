@@ -17,6 +17,8 @@ struct http_server_config  server_conf = { 0 };
  *   либо до указанной отметки (watermark).
  */
 
+//-----------------------------------------
+/* Connecting handling */
 void  http_ac_err_cb (evutil_socket_t fd, short ev, void *arg)
 {
   struct event_base *base = (struct event_base*) arg;
@@ -27,44 +29,67 @@ void  http_ac_err_cb (evutil_socket_t fd, short ev, void *arg)
 
   event_base_loopexit (base, NULL);
 }
-/* Connecting handling */
 void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
 {
-  /* A new connection! Set up a bufferevent for it */
-  struct event_base  *base =  (struct event_base*) arg;
-
+  //----------------------------------------------------------------------
   int  SlaveSocket = accept (fd, 0, 0);
   if ( SlaveSocket == -1 )
-  { fprintf (stderr, "%s\n", strerror (errno));
+  {
+    fprintf (stderr, "%s\n", strerror (errno));
     return;
   }
-  
+  //----------------------------------------------------------------------
   set_nonblock (SlaveSocket);
-
+  //----------------------------------------------------------------------
+  wc_t r = (rand () % server_conf.workers);
+  child_worker_send (&server_conf.child_workers[r], CHWMSG_TASK, SlaveSocket);
+  //----------------------------------------------------------------------
+#ifdef _DEBUG
+  printf ("connection accepted\n");
+#endif
+}
+//-----------------------------------------
+void  http_connect_cb (evutil_socket_t fd, short ev, void *arg)
+{
+  struct event_base *base = (struct event_base*) arg;
+  //----------------------------------------------------------------------
   /* Making the new client */
   struct client *Client = (struct client*) calloc (1U, sizeof (*Client));
   if ( !Client )
-  { fprintf (stderr, "%s\n", strerror (errno));
+  {
+    fprintf (stderr, "%s\n", strerror (errno));
     return;
   }
-  Client->base = base;
 
-  /* Create new bufferized event, linked with client's socket */
-  Client->b_ev = bufferevent_socket_new (base, SlaveSocket, BEV_OPT_CLOSE_ON_FREE);
-  bufferevent_setcb  (Client->b_ev, http_read_cb, NULL /* http_write_cb */ , http_error_cb, Client);
-  /* Ready to get data */
-  bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
+  Client->base = base;  
+  //----------------------------------------------------------------------
+  evutil_socket_t  SlaveSocket = -1;
+  chwmsg_enum msg;
+  child_worker_recv (server_conf.myself, &msg, &SlaveSocket);
 
-  http_request_init (&Client->request);
-  // bufferevent_setwatermark (Client->b_ev, EV_WRITE, 0, 0);
+  if ( msg == CHWMSG_TERM )
+  { event_base_loopexit (base, NULL); }
+  else
+  {
+    //----------------------------------------------------------------------
+    /* Create new bufferized event, linked with client's socket */
+    Client->b_ev = bufferevent_socket_new (base, SlaveSocket, BEV_OPT_CLOSE_ON_FREE);
+    bufferevent_setcb (Client->b_ev, http_read_cb, NULL, http_error_cb, Client);
+    /* Ready to get data */
+    bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
+
 #ifdef _DEBUG
-  printf ("connection established\n");
+    printf ("connection to server\n");
 #endif
+
+    http_request_init (&Client->request);
+  }
 }
 //-----------------------------------------
 void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
 {
   struct client *Client = (struct client*) arg;
+
 #ifdef _DEBUG
   if ( events & BEV_EVENT_EOF )
   {
@@ -76,6 +101,7 @@ void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
     fprintf (stderr, "Error from bufferevent: '%s'\n",
              evutil_socket_error_to_string (EVUTIL_SOCKET_ERROR ()));
   }
+
   if ( events & (BEV_EVENT_EOF | BEV_EVENT_ERROR) )
   {
     http_request_free (&Client->request);
@@ -95,8 +121,8 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
 
   while ( evbuffer_get_length (bufferevent_get_input (b_ev)) )
   {
-    http_request_parse (&Client->request, bufferevent_get_input (b_ev));
-    /* Copy all the data from the input buffer to the output buffer. */
+    http_request_parse (&Client->request, bufferevent_get_input  (b_ev));
+    /* Copy all the data from the input buffer to the output buffer */
     http_response_make (&Client->request, bufferevent_get_output (b_ev));
   }
 
@@ -104,61 +130,4 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
   printf ("response ready\n");
 #endif // _DEBUG
 }
-// void  http_write_cb (struct bufferevent *b_ev, void *arg)
-// { struct client *Client = (struct client*) arg;   
-//   // bufferevent_write
-//   // bufferevent_write_buffer ()
-// #ifdef _DEBUG
-//   printf ("write event\n");
-// #endif
-//   // http_response_make (&Client->request, bufferevent_get_output (b_ev));
-//   // bufferevent_write_buffer (b_ev, ev_buf);
-// }
-//-----------------------------------------
-// void  http_ac_err_cb (struct evconnlistener *listener, void *arg);
-// void  http_accept_cb (struct evconnlistener *listener, evutil_socket_t fd,
-//                       struct sockaddr *address, int socklen, void *arg);
-//-----------------------------------------
-// void  on_read (evutil_socket_t fd, short ev, void *arg)
-// {
-//   struct client  *Client = (struct client*) arg;
-// 
-//   static char Buffer[1024];
-//   int  recv_size = recv (fd, Buffer, 1024, MSG_NOSIGNAL);
-//   if ( recv_size <= 0 )
-//   {
-//     shutdown (fd, SHUT_RDWR);
-//     close (fd);
-// 
-//     event_del (&(Client->ev_read));
-//     free (Client);
-//   }
-// 
-//   send (fd, Buffer, recv_size, MSG_NOSIGNAL);
-// }
-// //-----------------------------------------
-// void  on_accept (evutil_socket_t fd, short ev, void *arg)
-// {
-//   int  SlaveSocket = accept (fd, 0, 0);
-//   if ( SlaveSocket == -1 )
-//   {
-//     fprintf (stderr, "%s\n", strerror (errno));
-//     return;
-//   }
-// 
-//   set_nonblock (SlaveSocket);
-// 
-//   struct client *Client = (struct client*) calloc (1U, sizeof (*Client));
-//   if ( !Client )
-//   {
-//     fprintf (stderr, "%s\n", strerror (errno));
-// 
-//     shutdown (SlaveSocket, SHUT_RDWR);
-//     close (SlaveSocket);
-//     return;
-//   }
-// 
-//   event_set (&Client->ev_read, SlaveSocket, EV_READ | EV_PERSIST, on_read, Client);
-//   event_add (&Client->ev_read, NULL);
-// }
 //-----------------------------------------

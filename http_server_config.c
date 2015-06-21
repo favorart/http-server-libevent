@@ -16,7 +16,7 @@ int   set_nonblock (evutil_socket_t fd)
 #endif
 }
 //-----------------------------------------
-int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip, char* workers)
+int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip, char* work)
 {
   //-----------------------
   const uint16_t  max_port = 65535U;
@@ -49,11 +49,28 @@ int   http_server_config_init  (srv_conf *conf, char *path, char *port, char *ip
     strcpy (conf->ip, "0.0.0.0");
   }
   //-----------------------
-  const uint16_t  max_workers = HTTP_MAX_WORKERS;
-  if ( !workers || (conf->workers = atoi (workers)) > max_workers )
-  { my_errno = HTTP_ERR_INPUT;
+  if ( !work || (conf->workers = atoi (work)) > HTTP_MAX_WORKERS )
+  {
+    my_errno = HTTP_ERR_INPUT;
     fprintf (stderr, "%s\n", strmyerror ());
-    conf->workers = 4;
+    conf->workers = 4U;
+  }
+  //-----------------------
+  if ( !(conf->child_workers = calloc (conf->workers, sizeof (*conf->child_workers))) )
+  {
+    perror ("child_workers");
+    exit (EXIT_FAILURE);
+  }
+
+  for ( wc_t i = 0U; i < conf->workers; ++i )
+  {
+    if ( !child_worker_init (&conf->child_workers[i]) )
+    {
+      conf->myself = &conf->child_workers[i];
+      conf->workers = (i + 1);
+      break;
+    }
+    else (conf->myself = NULL);
   }
   //-----------------------
   /* exec working directory */
