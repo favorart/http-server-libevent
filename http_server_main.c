@@ -7,6 +7,11 @@ int main (int argc, char **argv)
 {
   int result = 0;
 
+#ifdef HTTP_SYSLOG
+  // setlogmask (LOG_UPTO (LOG_NOTICE));
+  openlog (HTTP_SERVER_NAME, LOG_PERROR /*LOG_CONS | LOG_PID | LOG_NDELAY*/, LOG_LOCAL1);
+#endif
+
   /* Считывание конфигурации сервера с параметров командной строки */
   if( parse_console_parameters (argc, argv, &server_conf) )
   {
@@ -124,6 +129,8 @@ MARK_FREE:
   close    (MasterSocket);
 
   http_server_config_free (&server_conf);
+
+  closelog ();
   //-------------------------------------------
   return result;
 }

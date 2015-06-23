@@ -28,8 +28,7 @@ size_t  sock_fd_write (int sock, void *buf, size_t buf_len, int  fd)
 
   //-----------------------
   if ( fd == -1 )
-  {
-    perror ("fd not passed");
+  { perror ("fd not passed");
     return 0U;
   }
 
@@ -46,9 +45,7 @@ size_t  sock_fd_write (int sock, void *buf, size_t buf_len, int  fd)
   //-----------------------
   size_t    size;
   if ( 0 > (size = sendmsg (sock, &msg, 0)) )
-  {
-    perror ("sendmsg");
-  }
+  { perror ("sendmsg"); }
   //-----------------------
   return size;
 }

@@ -27,6 +27,11 @@ void  http_ac_err_cb (evutil_socket_t fd, short ev, void *arg)
   fprintf (stderr, "Got an error %d (%s) on the listener. "
            "Shutting down.\n", err, evutil_socket_error_to_string (err));
 
+#ifdef HTTP_SYSLOG
+  syslog (LOG_ERR, "Got an error %d (%s) on the listener.\nShutting down.\n",
+          err, evutil_socket_error_to_string (err));
+#endif
+
   event_base_loopexit (base, NULL);
 }
 void  http_accept_cb (evutil_socket_t fd, short ev, void *arg)
@@ -79,7 +84,11 @@ void  http_connect_cb (evutil_socket_t fd, short ev, void *arg)
     bufferevent_enable (Client->b_ev, EV_READ | EV_WRITE | EV_PERSIST);
 
 #ifdef _DEBUG
-    printf ("connection to server\n");
+    printf ("connection to %d\n", server_conf.workers);
+#endif
+
+#ifdef HTTP_SYSLOG
+    syslog (LOG_INFO, "connection to %d\n", server_conf.workers);
 #endif
 
     http_request_init (&Client->request);
@@ -90,16 +99,29 @@ void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
 {
   struct client *Client = (struct client*) arg;
 
-#ifdef _DEBUG
+
   if ( events & BEV_EVENT_EOF )
   {
-    printf ("Got a close. Len = %u\n", evbuffer_get_length (bufferevent_get_output (b_ev)));
-  }
+#ifdef _DEBUG
+    printf ("Got a close. Len = %u\n",
+            evbuffer_get_length (bufferevent_get_output (b_ev)));
 #endif
+
+#ifdef HTTP_SYSLOG
+    syslog (LOG_INFO, "Got a close. Len = %u\n",
+            evbuffer_get_length (bufferevent_get_output (b_ev)));
+#endif
+  }
+
   if ( events & BEV_EVENT_ERROR )
   {
     fprintf (stderr, "Error from bufferevent: '%s'\n",
              evutil_socket_error_to_string (EVUTIL_SOCKET_ERROR ()));
+
+#ifdef HTTP_SYSLOG
+    syslog (LOG_ERR, "Error from bufferevent: '%s'\n",
+            evutil_socket_error_to_string (EVUTIL_SOCKET_ERROR ()));
+#endif
   }
 
   if ( events & (BEV_EVENT_EOF | BEV_EVENT_ERROR) )
@@ -119,6 +141,10 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
   printf ("request reseived\n");
 #endif // _DEBUG
 
+#ifdef HTTP_SYSLOG
+  syslog (LOG_INFO, "request reseived\n");
+#endif
+
   while ( evbuffer_get_length (bufferevent_get_input (b_ev)) )
   {
     http_request_parse (&Client->request, bufferevent_get_input  (b_ev));
@@ -129,5 +155,9 @@ void  http_read_cb  (struct bufferevent *b_ev, void *arg)
 #ifdef _DEBUG
   printf ("response ready\n");
 #endif // _DEBUG
+
+#ifdef HTTP_SYSLOG
+  syslog (LOG_INFO, "request reseived\n");
+#endif
 }
 //-----------------------------------------

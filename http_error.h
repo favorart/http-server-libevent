@@ -3,7 +3,8 @@
 #ifndef _HTTP_ERR_H_
 #define _HTTP_ERR_H_
 
-#define _DEBUG
+// #define _DEBUG
+#define  HTTP_SYSLOG
 //-----------------------------------------
 typedef enum
 { HTTP_ERR_NONE,  HTTP_ERR_PARAM,

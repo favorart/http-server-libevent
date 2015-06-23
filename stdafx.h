@@ -12,6 +12,8 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <time.h>
+
+#include <sys/syslog.h>
 //-----------------------------------------
 #include <event.h>
 //-----------------------------------------
