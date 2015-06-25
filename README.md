@@ -14,7 +14,7 @@ supports
  1. requests:
     +  GET (html/jpeg files),
     +  HEAD,
-    +  POST (just 200 answer
+    +  POST (just 200 answer)
  2. responses:
     +  200
     +  404
