@@ -189,6 +189,7 @@ int  child_worker_send (struct child_worker *chw, chwmsg_enum  msg, fd_t  fd)
   }
   //-----------------------
   size_t size = sock_fd_write (chw->fd, msg_char, strlen (msg_char), fd);
+  close (fd);
   //-----------------------
   return size;
 }

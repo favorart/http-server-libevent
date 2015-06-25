@@ -106,7 +106,7 @@ void  http_error_cb (struct bufferevent *b_ev, short events, void *arg)
     printf ("Got a close. Len = %u\n",
             evbuffer_get_length (bufferevent_get_output (b_ev)));
 #endif
-
+    shutdown (bufferevent_getfd (Client->b_ev), SHUT_RDWR);
 #ifdef HTTP_SYSLOG
     syslog (LOG_INFO, "Got a close. Len = %u\n",
             evbuffer_get_length (bufferevent_get_output (b_ev)));
