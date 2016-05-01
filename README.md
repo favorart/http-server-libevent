@@ -1,4 +1,4 @@
-# Home work #1: HTTP server 
+# HTTP server 
 
 Technosphere.mail.ru 2015
 
