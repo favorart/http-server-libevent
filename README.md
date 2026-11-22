@@ -1,3 +1,5 @@
+> **Moved:** this server now lives in [favorart/network-servers](https://github.com/favorart/network-servers/tree/main/http-server), with its full history, tests and releases. This repository is archived.
+
 # HTTP server 
 
 Technosphere.mail.ru 2015
